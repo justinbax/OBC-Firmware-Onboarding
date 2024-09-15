@@ -49,6 +49,10 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
     return ERR_CODE_INVALID_ARG;
   }
 
+  if (!thermalMgrQueueHandle) {
+    return ERR_CODE_INVALID_STATE;
+  }
+
   if (xQueueSend(thermalMgrQueueHandle, event, 0) != pdTRUE) {
     return ERR_CODE_QUEUE_FULL;
   }
@@ -74,7 +78,7 @@ static void thermalMgr(void *pvParameters) {
 
       LOG_IF_ERROR_CODE(readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp));
 
-      if (event.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) {
+      if (event.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD && errCode) {
         addTemperatureTelemetry(temp);
       } else if (event.type == THERMAL_MGR_EVENT_OS_INTERRUPT) {
         // Determine if it's over-temperature or hysteresis, and act accordingly
@@ -83,11 +87,11 @@ static void thermalMgr(void *pvParameters) {
         } else if (temp <= LM75BD_DEFAULT_HYST_THRESH) {
           safeOperatingConditions();
         } else {
-          LOG_ERROR_CODE(ERR_CODE_INVALID_STATE);
+          LOG_ERROR_CODE(ERR_CODE_INVALID_EVENT);
         }
       } else {
         // The event type is unknown
-        LOG_ERROR_CODE(ERR_CODE_INVALID_STATE);
+        LOG_ERROR_CODE(ERR_CODE_INVALID_EVENT);
       }
     }
   }

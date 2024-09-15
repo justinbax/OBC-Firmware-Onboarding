@@ -32,11 +32,11 @@ error_code_t readTempLM75BD(uint8_t devAddr, float *temp) {
 
   // Sends pointer to access temperature register
   uint8_t ptrBytes[1] = {0};
-  RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, ptrBytes, 1));
+  RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, ptrBytes, sizeof(ptrBytes)));
 
   // Receive temperature
   uint8_t dataBytes[2] = {0};
-  RETURN_IF_ERROR_CODE(i2cReceiveFrom(devAddr, dataBytes, 2));
+  RETURN_IF_ERROR_CODE(i2cReceiveFrom(devAddr, dataBytes, sizeof(dataBytes)));
 
   // Combines both bytes to get final value
   int16_t tempValue = (dataBytes[0] << 8) | (dataBytes[1]);
