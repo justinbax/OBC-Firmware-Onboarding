@@ -49,7 +49,7 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
     return ERR_CODE_INVALID_ARG;
   }
 
-  if (xQueueSend(thermalMgrQueueHandle, event, 10) != pdTRUE) {
+  if (xQueueSend(thermalMgrQueueHandle, event, 0) != pdTRUE) {
     return ERR_CODE_QUEUE_FULL;
   }
 
@@ -57,47 +57,36 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
 }
 
 void osHandlerLM75BD(void) {
-  error_code_t errCode;
   thermal_mgr_event_t event;
   event.type = THERMAL_MGR_EVENT_OS_INTERRUPT;
-  LOG_IF_ERROR_CODE(thermalMgrSendEvent(&event));
+  thermalMgrSendEvent(&event);
 }
 
 static void thermalMgr(void *pvParameters) {
   while (1) {
-    error_code_t errCode;
     thermal_mgr_event_t event;
-    BaseType_t eventReceived = xQueueReceive(thermalMgrQueueHandle, &event, 10);
 
-    if (eventReceived == pdTRUE) {
-      // Switch case to easily allow for more events in the future
-      switch (event.type) {
-        case THERMAL_MGR_EVENT_MEASURE_TEMP_CMD:
-        case THERMAL_MGR_EVENT_OS_INTERRUPT:
-          // Both cases are practically the same, except we do more logging at the end if it's OS_INTERRUPT
-          if (pvParameters == NULL) {
-            LOG_ERROR_CODE(ERR_CODE_INVALID_ARG);
-            continue;
-          }
-          lm75bd_config_t config = *(lm75bd_config_t *)(pvParameters);
+    if (xQueueReceive(thermalMgrQueueHandle, &event, 0) == pdTRUE) {
+      // An event was received
+      error_code_t errCode;
+      float temp = 0.0f;
 
-          float temp = 0.0f;
-          LOG_IF_ERROR_CODE(readTempLM75BD(config.devAddr, &temp));
-          addTemperatureTelemetry(temp);
+      LOG_IF_ERROR_CODE(readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp));
 
-          if (event.type == THERMAL_MGR_EVENT_OS_INTERRUPT) {
-            if (temp >= config.overTempThresholdCelsius) {
-              overTemperatureDetected();
-            } else if (temp <= config.hysteresisThresholdCelsius) {
-              safeOperatingConditions();
-            } else {
-              LOG_ERROR_CODE(ERR_CODE_INVALID_STATE);
-            }
-          }
-          break;
-        default:
+      if (event.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) {
+        addTemperatureTelemetry(temp);
+      } else if (event.type == THERMAL_MGR_EVENT_OS_INTERRUPT) {
+        // Determine if it's over-temperature or hysteresis, and act accordingly
+        if (temp >= LM75BD_DEFAULT_OT_THRESH) {
+          overTemperatureDetected();
+        } else if (temp <= LM75BD_DEFAULT_HYST_THRESH) {
+          safeOperatingConditions();
+        } else {
           LOG_ERROR_CODE(ERR_CODE_INVALID_STATE);
-          break;
+        }
+      } else {
+        // The event type is unknown
+        LOG_ERROR_CODE(ERR_CODE_INVALID_STATE);
       }
     }
   }

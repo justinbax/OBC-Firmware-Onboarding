@@ -30,22 +30,17 @@ error_code_t readTempLM75BD(uint8_t devAddr, float *temp) {
 
   if (temp == NULL) return ERR_CODE_INVALID_ARG;
 
-  uint8_t ptrByte = 0x00;
-  RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, &ptrByte, 1));
+  // Sends pointer to access temperature register
+  uint8_t ptrBytes[1] = {0};
+  RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, ptrBytes, 1));
 
+  // Receive temperature
   uint8_t dataBytes[2] = {0};
   RETURN_IF_ERROR_CODE(i2cReceiveFrom(devAddr, dataBytes, 2));
 
-  uint16_t tempValue = (dataBytes[0] << 3) | (dataBytes[1] >> 5);
-  
-  if (tempValue & 0x400) {
-    // If MSbit is set, temperature is negative; take two's complement
-    tempValue ^= 0x7FF;
-    tempValue++;
-    *temp = tempValue * -0.125f;
-  } else {
-    *temp = tempValue * 0.125f;
-  }
+  // Combines both bytes to get final value
+  int16_t tempValue = (dataBytes[0] << 8) | (dataBytes[1]);
+  *temp = (tempValue >> 5) * 0.125f;
   
   return ERR_CODE_SUCCESS;
 }
