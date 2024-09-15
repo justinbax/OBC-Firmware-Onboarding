@@ -57,13 +57,15 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
 }
 
 void osHandlerLM75BD(void) {
+  error_code_t errCode;
   thermal_mgr_event_t event;
   event.type = THERMAL_MGR_EVENT_OS_INTERRUPT;
-  thermalMgrSendEvent(&event);
+  LOG_IF_ERROR_CODE(thermalMgrSendEvent(&event));
 }
 
 static void thermalMgr(void *pvParameters) {
   while (1) {
+    error_code_t errCode;
     thermal_mgr_event_t event;
     BaseType_t eventReceived = xQueueReceive(thermalMgrQueueHandle, &event, 10);
 
@@ -73,13 +75,15 @@ static void thermalMgr(void *pvParameters) {
         case THERMAL_MGR_EVENT_MEASURE_TEMP_CMD:
         case THERMAL_MGR_EVENT_OS_INTERRUPT:
           // Both cases are practically the same, except we do more logging at the end if it's OS_INTERRUPT
-          if (pvParameters == NULL) continue;
+          if (pvParameters == NULL) {
+            LOG_ERROR_CODE(ERR_CODE_INVALID_ARG);
+            continue;
+          }
           lm75bd_config_t config = *(lm75bd_config_t *)(pvParameters);
 
           float temp = 0.0f;
-          if (readTempLM75BD(config.devAddr, &temp) == ERR_CODE_SUCCESS) {
-            addTemperatureTelemetry(temp);
-          }
+          LOG_IF_ERROR_CODE(readTempLM75BD(config.devAddr, &temp));
+          addTemperatureTelemetry(temp);
 
           if (event.type == THERMAL_MGR_EVENT_OS_INTERRUPT) {
             if (temp >= config.overTempThresholdCelsius) {
