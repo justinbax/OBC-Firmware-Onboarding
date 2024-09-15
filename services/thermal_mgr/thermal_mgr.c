@@ -57,6 +57,7 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
 }
 
 void osHandlerLM75BD(void) {
+  // Send an event to handle the over-temperature and exit the interrupt ASAP
   thermal_mgr_event_t event;
   event.type = THERMAL_MGR_EVENT_OS_INTERRUPT;
   thermalMgrSendEvent(&event);
