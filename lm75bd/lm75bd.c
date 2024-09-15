@@ -26,7 +26,26 @@ error_code_t lm75bdInit(lm75bd_config_t *config) {
 }
 
 error_code_t readTempLM75BD(uint8_t devAddr, float *temp) {
-  /* Implement this driver function */
+  error_code_t errCode;
+
+  if (temp == NULL) return ERR_CODE_INVALID_ARG;
+
+  uint8_t ptrByte = 0x00;
+  RETURN_IF_ERROR_CODE(i2cSendTo(devAddr, &ptrByte, 1));
+
+  uint8_t dataBytes[2] = {0};
+  RETURN_IF_ERROR_CODE(i2cReceiveFrom(devAddr, dataBytes, 2));
+
+  uint16_t tempValue = (dataBytes[0] << 3) | (dataBytes[1] >> 5);
+  
+  if (tempValue & 0x400) {
+    // If MSbit is set, temperature is negative; take two's complement
+    tempValue ^= 0x7FF;
+    tempValue++;
+    *temp = tempValue * -0.125f;
+  } else {
+    *temp = tempValue * 0.125f;
+  }
   
   return ERR_CODE_SUCCESS;
 }
